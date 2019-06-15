@@ -24,7 +24,10 @@ class JobDB:
     def __enter__(self):
         start_ts = time.time()
         self._fp = open(self._path, self._mode)
-        os.chmod(self._path, 0o777)
+        try:
+            os.chmod(self._path, 0o777)
+        except PermissionError:
+            pass
         
         while True:
             try:
