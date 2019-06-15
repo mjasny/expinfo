@@ -81,13 +81,13 @@ def get_user():
     else:
         return os.environ['USER']
 
-
+EXE_NAME = 'run_exp'
 DB_FILE = '/tmp/expinfo/expinfo.json'
 FMT_STR = bcolors.WARNING + '{user:<15}' + bcolors.ENDC + '{start} until {end}\n{cmd}'
 
 
 def print_motd():
-    print('{}Experiment Job Manager: {} --help{}'.format(bcolors.OKGREEN, sys.argv[0], bcolors.ENDC))
+    print('{}Experiment Job Manager: {} --help{}'.format(bcolors.OKGREEN, EXE_NAME, bcolors.ENDC))
     print()
     
     with JobDB(DB_FILE) as f:
