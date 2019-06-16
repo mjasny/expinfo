@@ -12,6 +12,7 @@ import subprocess
 import argparse
 import uuid
 import re
+import signal
 
 
 class JobDB:
@@ -119,6 +120,16 @@ def get_args(print_help=False):
     return args
 
 
+def cleanup(my_id, force=False):
+    with JobDB(DB_FILE) as f:
+        d = f.load() or {}
+        if my_id in d:
+            del d[my_id]
+        f.store(d)
+        
+    if force:
+        print('exited forcefully', file=sys.stderr)
+        sys.exit(1)
 
     
 def main():
@@ -148,18 +159,16 @@ def main():
         f.store(d)
     
     
-    print('Starting cmd={}'.format(cmd), file=sys.stderr)
+    clean_shutdown = lambda sig, frame: cleanup(my_id, True)
+    signal.signal(signal.SIGHUP, clean_shutdown)
+    signal.signal(signal.SIGINT, clean_shutdown)
+    signal.signal(signal.SIGTERM, clean_shutdown)
+    
+    print('Starting cmd={}'.format(cmd), file=sys.stderr)        
     try:
         subprocess.run(cmd, shell=True)
-    except KeyboardInterrupt:
-        pass
-        
-    
-    with JobDB(DB_FILE) as f:
-        d = f.load() or {}
-        if my_id in d:
-            del d[my_id]
-        f.store(d)
+    finally:
+        cleanup(my_id)
         
     
     
