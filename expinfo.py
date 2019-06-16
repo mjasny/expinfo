@@ -94,15 +94,18 @@ def print_motd():
     print('{}Experiment Job Manager: {} --help{}'.format(bcolors.OKGREEN, EXE_NAME, bcolors.ENDC))
     print()
     
-    with JobDB(DB_FILE) as f:
-        d = f.load()
-        if not d:
-            return
+    try:
+        with JobDB(DB_FILE, timeout=1) as f:
+            d = f.load()
+            if not d:
+                return
         
-        print('{}{}Currently the following experiments are running:{}'.format(bcolors.BOLD, bcolors.FAIL, bcolors.ENDC))
-        
-        for uuid, exp in d.items():
-            print(FMT_STR.format(**exp))
+            print('{}{}Currently the following experiments are running:{}'.format(bcolors.BOLD, bcolors.FAIL, bcolors.ENDC))
+            
+            for uuid, exp in d.items():
+                print(FMT_STR.format(**exp))
+    except:
+        print('{}Cannot aquire lock, please run: rm -r {}/{}'.format(bcolors.WARNING, os.path.dirname(DB_FILE), bcolors.ENDC))
     
     print()
 
@@ -160,6 +163,7 @@ def main():
     
     
     clean_shutdown = lambda sig, frame: cleanup(my_id, True)
+    signal.signal(signal.SIGALRM, clean_shutdown)
     signal.signal(signal.SIGHUP, clean_shutdown)
     signal.signal(signal.SIGINT, clean_shutdown)
     signal.signal(signal.SIGTERM, clean_shutdown)
