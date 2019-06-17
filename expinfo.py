@@ -41,7 +41,6 @@ def main():
         end=end_time.strftime('%Y-%m-%d %H:%M:%S'),
         cmd=cmd
     )
-        
     
     clean_shutdown = lambda sig, frame: exit(my_id)
     signal.signal(signal.SIGALRM, clean_shutdown)
@@ -49,10 +48,10 @@ def main():
     signal.signal(signal.SIGINT, clean_shutdown)
     signal.signal(signal.SIGTERM, clean_shutdown)
     
-    print('Starting cmd={}'.format(cmd), file=sys.stderr)        
+    print('Starting cmd={}'.format(cmd), file=sys.stderr)     
+    
     try:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, 
-                             shell=True, preexec_fn=os.setsid) 
+        p = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid) 
         
         DBHelper.set(my_id, pid=p.pid)
 
