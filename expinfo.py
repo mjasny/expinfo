@@ -23,6 +23,23 @@ from config import *
 def main():
     os.makedirs(os.path.dirname(DB_FILE), mode=0o777, exist_ok=True)
     args = get_args()
+    jobs = get_jobs()
+
+    for _, j in jobs.items():
+        if j['exclusive']:
+            from utils import print_motd
+            print_motd()
+
+            print('{}{}An exclusive job is running, please wait until it has finished.{}'.format(bcolors.BOLD, bcolors.FAIL, bcolors.ENDC))
+            sys.exit(1)
+
+    if args.exclusive and len(jobs) > 0:
+        from utils import print_motd
+        print_motd()
+
+        print('{}{}Cannot start job exclusively, please wait until all other jobs finished.{}'.format(bcolors.BOLD, bcolors.FAIL, bcolors.ENDC))
+        sys.exit(1)
+    
     
     hours, minutes = 1, 0
     if args.time:
@@ -39,7 +56,10 @@ def main():
         user=get_user(),
         start=start_time.strftime('%Y-%m-%d %H:%M:%S'),
         end=end_time.strftime('%Y-%m-%d %H:%M:%S'),
-        cmd=cmd
+        cmd=cmd,
+        msg=args.message,
+        exclusive=args.exclusive,
+        pid=0
     )
     
     clean_shutdown = lambda sig, frame: exit(my_id)

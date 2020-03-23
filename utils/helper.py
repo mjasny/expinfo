@@ -47,7 +47,9 @@ def get_user():
     
 def get_args(print_help=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--time', help='expected runtime [hours:mm]')
+    parser.add_argument('-t', '--time', help='expected runtime [hours:minutes]')
+    parser.add_argument('-m', '--message', default='', help='descriptive message to display')
+    parser.add_argument('-ex', '--exclusive', default=False, action='store_true', help='request exclusive experiment access (shared by default)')
     parser.add_argument('cmd', nargs='*', help='run command as experiment job')
     args = parser.parse_args()
     
@@ -57,6 +59,14 @@ def get_args(print_help=False):
         sys.exit(0)
     
     return args
+
+
+def get_jobs():
+    try:
+        return DBHelper.get()
+    except:
+        print('{}Cannot aquire lock, please run: rm -r {}/{}'.format(bcolors.WARNING, os.path.dirname(DB_FILE), bcolors.ENDC))
+        sys.exit(0)
 
 
 def kill_pg(pid):
