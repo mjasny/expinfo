@@ -50,8 +50,13 @@ def get_args(print_help=False):
     parser.add_argument('-t', '--time', help='expected runtime [hours:minutes]')
     parser.add_argument('-m', '--message', default='', help='descriptive message to display')
     parser.add_argument('-ex', '--exclusive', default=False, action='store_true', help='request exclusive experiment access (shared by default)')
+    parser.add_argument('-p', '--prompt', default=False, action='store_true', help='print small info for terminal prompt')
     parser.add_argument('cmd', nargs='*', help='run command as experiment job')
     args = parser.parse_args()
+
+    if args.prompt:
+        print_prompt()
+        sys.exit(0)
     
     if not args.cmd:
         from utils import print_motd
@@ -75,7 +80,22 @@ def kill_pg(pid):
     except ProcessLookupError:
         pass
 
-    
+
+def print_prompt():
+    from utils import bcolors
+    jobs = get_jobs()
+    if not jobs:
+        return
+
+    for _, exp in jobs.items():
+        if exp['exclusive']:
+            print('{}{}*** EXCLUSIVE ACCESS by {} ***{}'.format(bcolors.BOLD, bcolors.FAIL, exp['user'], bcolors.ENDC))
+            return
+
+    n = len(jobs)
+    plural = 's' if n > 1 else ''
+    print('{}{} job{} running!{}'.format(bcolors.WARNING, n, plural, bcolors.ENDC))
+
 
 def exit(my_id):
     job = DBHelper.rm(my_id)
