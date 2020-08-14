@@ -94,7 +94,9 @@ def print_prompt():
 
     n = len(jobs)
     plural = 's' if n > 1 else ''
-    print('{}{} job{} running!{}'.format(bcolors.WARNING, n, plural, bcolors.ENDC))
+    print(jobs)
+    info = ', '.join(set(x['user'] for x in jobs.values()))
+    print('{}{} job{} running from {}{}{}!{}'.format(bcolors.WARNING, n, plural, bcolors.OKBLUE, info, bcolors.WARNING, bcolors.ENDC))
 
 
 def exit(my_id):
