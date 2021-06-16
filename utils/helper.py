@@ -47,21 +47,27 @@ def get_user():
 
 
 def get_args(print_help=False):
+
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-t', '--time', help='expected runtime [hours:minutes]')
-    parser.add_argument('-m', '--message',
-                        help='descriptive message to display')
-    parser.add_argument('-ex', '--exclusive', default=False, action='store_true',
-                        help='request exclusive experiment access (shared by default)')
-    parser.add_argument(
-        '-n', '--numa', help='Pin to numa node (comma-separated list)')
-    parser.add_argument('-p', '--pin', default=False,
-                        action='store_true', help='pin executeable to specified numa nodes')
     parser.add_argument('--prompt', default=False,
                         action='store_true', help='print small info for terminal prompt')
     parser.add_argument(
+        '-t', '--time', help='expected runtime [hours:minutes]')
+
+    parser.add_argument('-ex', '--exclusive', default=False, action='store_true',
+                        help='request exclusive experiment access (shared by default)')
+    parser.add_argument('-p', '--pin', default=False,
+                        action='store_true', help='pin executeable to specified numa nodes (does invoke numactl)')
+
+    required_group = parser.add_argument_group('required arguments')
+    required_group.add_argument('-m', '--message',
+                                help='descriptive message for the job')
+    required_group.add_argument(
+        '-n', '--numa', help='Pin to numa node (does *not* invoke numactl)')
+
+    parser.add_argument(
         'cmd', nargs='*', help='run command as experiment job. pro-tip: write -- before your command.')
+
     args = parser.parse_args()
 
     if args.prompt:
