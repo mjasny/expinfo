@@ -1,0 +1,3 @@
+DAEMON_IP = '0.0.0.0'
+DAEMON_PORT = 9090
+EXE_NAME = 'run_exp'
