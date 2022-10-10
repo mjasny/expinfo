@@ -1,0 +1,13 @@
+[Unit]
+Description=ExpInfo Daemon
+
+
+[Service]
+ExecStart=/opt/expinfo/daemon
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+Type=simple
+
+[Install]
+WantedBy=default.target
+

@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 
 import asyncio
-from asyncio.exceptions import IncompleteReadError
 from collections import defaultdict
 import json
 import traceback
 import os
 import config
 
+try:
+    from asyncio.exceptions import IncompleteReadError
+except ModuleNotFoundError: # for python3.7
+    from asyncio.streams import IncompleteReadError
 
-__location__ = os.path.realpath(os.path.join(
-    os.getcwd(), os.path.dirname(__file__)))
+
+from utils import bcolors
+import hooks
+
+
 
 
 class KVStore:
@@ -60,113 +66,26 @@ class UndoLog:
             self.__db.delete_many(self.__keys)
 
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-
-class PromptUpdater:
-    def __init__(self, db):
-        self.db = db
-        self.filename = os.path.join(__location__, 'prompt')
-
-    def update(self, msg=None):
-        if msg is not None and msg['method'] not in ['insert', 'update', 'delete', 'delete_many']:
-            return
-
-        f = open(self.filename, 'w')
-
-        entries = self.db.read()
-        if not entries:
-            return
-
-        # 🔴 🟡 🟢 \033[0;31m ● job 1\033[0m\n
-        for entry in entries.values():
-            if entry['exclusive']:
-                f.write(
-                    f'{bcolors.BOLD}{bcolors.FAIL}*** EXCLUSIVE ACCESS by{bcolors.ENDC} {bcolors.OKBLUE}{entry["user"]}{bcolors.ENDC} {bcolors.BOLD}{bcolors.FAIL}***{bcolors.ENDC}')
-                f.write('\\n')
-                return
-
-        n = len(entries)
-        plural = 's' if n > 1 else ''
-        info = ', '.join(set(x['user'] for x in entries.values()))
-        f.write(
-            f'{bcolors.WARNING}{n} job{plural} running from {bcolors.OKBLUE}{info}{bcolors.WARNING}!{bcolors.ENDC}')
-        f.write('\\n')
-
-
-class MotdUpdater:
-    def __init__(self, db):
-        self.db = db
-        self.filename = os.path.join(__location__, 'motd')
-
-    def update(self, msg=None):
-        if msg is not None and msg['method'] not in ['insert', 'update', 'delete', 'delete_many']:
-            return
-
-        f = open(self.filename, 'w')
-
-        f.write('{}Experiment Job Manager: {} --help{}\n'.format(bcolors.OKGREEN,
-                                                                 config.EXE_NAME, bcolors.ENDC))
-        f.write('\n')
-        f.write('{}Please register all processes you start!{}\n'.format(
-            bcolors.WARNING, bcolors.ENDC))
-        f.write('\n')
-
-        entries = self.db.read()
-        if not entries:
-            return
-
-        f.write('{}{}Currently the following experiments are running:{}\n'.format(
-            bcolors.BOLD, bcolors.FAIL, bcolors.ENDC))
-        for _id, exp in entries.items():
-            f.write(self.get_fmt_exp(_id=_id, **exp))
-            f.write('\n\n')
-
-    def get_fmt_exp(self, _id, user, start, end, cmd, msg, exclusive, pid, numa='?'):
-        line = ''
-
-        if exclusive:
-            line += '\n{}*** EXCLUSIVE ACCESS ***{}\n'.format(
-                bcolors.FAIL, bcolors.ENDC)
-
-        line += '{}{:<15}{} {}Start:{} {}'.format(
-            bcolors.WARNING, user, bcolors.ENDC, bcolors.OKBLUE, bcolors.ENDC, start)
-        line += ' {}NUMA:{} {} {}PID:{} {}'.format(
-            bcolors.OKBLUE, bcolors.ENDC, numa, bcolors.OKBLUE, bcolors.ENDC, pid)
-        line += '\n{}Message:{} {}'.format(bcolors.OKBLUE, bcolors.ENDC, msg)
-        line += '\n{}Exec:{} {}'.format(bcolors.OKBLUE, bcolors.ENDC, cmd)
-
-        if exclusive:
-            line += '\n{}*** EXCLUSIVE ACCESS ***{}'.format(
-                bcolors.FAIL, bcolors.ENDC)
-
-        return line
 
 
 class Daemon(dict):
     def __init__(self):
-        self.__db = KVStore()
-        self.__prompt = PromptUpdater(self.__db)
-        self.__motd = MotdUpdater(self.__db)
+        self.db = KVStore()
+        self.__hooks = []
+
+
+    def add_hook(self, hook):
+        self.__hooks.append(hook)
+        hook.update()
 
     async def handle_msg(self, log, msg, send):
         ret = None
         try:
-            fn = getattr(self.__db, msg['method'])
+            fn = getattr(self.db, msg['method'])
             kwargs = {x: msg[x]
                       for x in fn.__code__.co_varnames if x != 'self'}
             ret = fn(**kwargs)
             log.add(msg)
-            self.__prompt.update(msg)
-            self.__motd.update(msg)
         except Exception as e:
             print(traceback.format_exc())
             await send({'error': traceback.format_exc(limit=0)})
@@ -174,13 +93,19 @@ class Daemon(dict):
 
         if ret is None:
             await send({'error': None})
-            return
-        await send(ret)
+        else:
+            await send(ret)
+
+        for hook in self.__hooks:
+            try:
+                hook.update(msg)
+            except:
+                pass
 
     async def handle(self, reader, writer):
         addr = writer.get_extra_info('peername')
         print(f'Connection from: {addr[0]}:{addr[1]}')
-        log = UndoLog(self.__db)
+        log = UndoLog(self.db)
 
         async def send(msg):
             if writer.is_closing():
@@ -189,13 +114,16 @@ class Daemon(dict):
             print(f'Send: {j}')
             writer.write(j.encode())
             writer.write(b'\n')
-            await writer.drain()
+            try:
+                await writer.drain()
+            except ConnectionResetError:
+                return False
             return True
 
         while True:
             try:
                 data = await reader.readuntil(separator=b'\n')
-            except (IncompleteReadError, ConnectionResetError):
+            except (IncompleteReadError, ConnectionResetError, BrokenPipeError):
                 break
 
             try:
@@ -208,16 +136,24 @@ class Daemon(dict):
             await self.handle_msg(log, msg, send)
 
         writer.close()
-        await writer.wait_closed()
+        try:
+            await writer.wait_closed()
+        except BrokenPipeError:
+            pass
         print(f'Closed connection: {addr[0]}:{addr[1]}')
 
         # on disconnect remove all inserted data items
         log.undo()
-        self.__prompt.update()
-        self.__motd.update()
+        for hook in self.__hooks:
+            hook.update()
 
 
 daemon = Daemon()
+
+
+for Hook in hooks.ACTIVE:
+    daemon.add_hook(Hook(daemon.db))
+
 
 loop = asyncio.get_event_loop()
 coro = asyncio.start_server(
