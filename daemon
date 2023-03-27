@@ -9,14 +9,12 @@ import config
 
 try:
     from asyncio.exceptions import IncompleteReadError
-except ModuleNotFoundError: # for python3.7
+except ModuleNotFoundError:  # for python3.7
     from asyncio.streams import IncompleteReadError
 
 
 from utils import bcolors
 import hooks
-
-
 
 
 class KVStore:
@@ -66,13 +64,10 @@ class UndoLog:
             self.__db.delete_many(self.__keys)
 
 
-
-
 class Daemon(dict):
     def __init__(self):
         self.db = KVStore()
         self.__hooks = []
-
 
     def add_hook(self, hook):
         self.__hooks.append(hook)
@@ -156,8 +151,9 @@ for Hook in hooks.ACTIVE:
 
 
 loop = asyncio.get_event_loop()
+asyncio.set_event_loop(loop)
 coro = asyncio.start_server(
-    daemon.handle, config.DAEMON_IP, config.DAEMON_PORT, loop=loop)
+    daemon.handle, config.DAEMON_IP, config.DAEMON_PORT)
 server = loop.run_until_complete(coro)
 
 # Serve requests until Ctrl+C is pressed
